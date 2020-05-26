@@ -68,10 +68,11 @@ function pauseAds(ads, labelName) {
   while (ads.hasNext()) {
     var ad = ads.next();
     var url = ad.urls().getFinalUrl();
-    var content = UrlFetchApp.fetch(url).getContentText();
-    if (url.search(DETAIL_PAGE_STRING) === -1) {
+    if (!url || url.search(DETAIL_PAGE_STRING) === -1) {
       continue
     }
+
+    var content = UrlFetchApp.fetch(url).getContentText();
     var isOutOfStock = content.search(OUT_OF_STOCK_TEXT);
     if (isOutOfStock > -1) {
       Logger.log(url + ' ' + 'OUT OF STOCK');
@@ -88,6 +89,10 @@ function resumeAds(ads, labelName) {
   while (ads.hasNext()) {
     var ad = ads.next();
     var url = ad.urls().getFinalUrl();
+    if (!url) {
+      continue
+    }
+
     var content = UrlFetchApp.fetch(url).getContentText();
     var isOutOfStock = content.search(OUT_OF_STOCK_TEXT);
     if (isOutOfStock === -1) {
