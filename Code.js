@@ -68,14 +68,14 @@ function getPausedBecauseOfOutOfStockAds() {
   }
 }
 
-function pauseAdsByUrl(ads, urls) {
+function pauseAdsIfNotAvailable(ads, urlAvailabilityMap) {
   Logger.log('pausing - Number of ads to check: ' + ads.totalNumEntities());
 
   while (ads.hasNext()) {
     var ad = ads.next();
     var url = ad.urls().getFinalUrl();
 
-    if (url && urls.indexOf(url) !== -1) {
+    if (url && urlAvailabilityMap[url] === false) {
       Logger.log(url + ' ' + 'OUT OF STOCK');
       ad.pause();
       ad.applyLabel(outOfStockLabelName.replace('"', '').replace('"', ''));
@@ -83,14 +83,14 @@ function pauseAdsByUrl(ads, urls) {
   }
 }
 
-function resumeAdsByUrl(ads, urls) {
-  Logger.log('pausing - Number of ads to check: ' + ads.totalNumEntities());
+function resumeAdsIfAvailable(ads, urlAvailabilityMap) {
+  Logger.log('resuming - Number of ads to check: ' + ads.totalNumEntities());
 
   while (ads.hasNext()) {
     var ad = ads.next();
     var url = ad.urls().getFinalUrl();
 
-    if (url && urls.indexOf(url) !== -1) {
+    if (url && urlAvailabilityMap[url]) {
       Logger.log(url + ' ' + 'BACK IN STOCK');
       ad.enable();
       ad.labels().withCondition(
@@ -99,21 +99,33 @@ function resumeAdsByUrl(ads, urls) {
   }
 }
 
-function getInStockUrls() {
-  return [];
+function getUrlAvailabilityMap() {
+  var csvUrl = "http://zalacliphairextensions.com.au/media/feeds/google/au.csv";
+  var csvContent = UrlFetchApp.fetch(csvUrl).getContentText();
+  var csvData = parseCsv(csvContent);
+
+  var urlIndex = csvData[0].indexOf('link');
+  var availabilityIndex = csvData[0].indexOf('availability');
+
+  var urlAvailabilityMap = {};
+  for (var i=1; i<csvData.length; i++) {
+    urlAvailabilityMap[csvData[i][urlIndex]] = csvData[i][availabilityIndex] === 'in stock';
+  }
+
+  return urlAvailabilityMap;
 }
 
-function getOutOfStockUrls() {
-  return [];
+function parseCsv(csvString) {
+  var sanitizedString = csvString.replace(/(["'])(?:(?=(\\?))\2[\s\S])*?\1/g, function(e){return e.replace(/\r?\n|\r/g, ' ') });
+  return Utilities.parseCsv(sanitizedString);
 }
 
 function main() {
   var activeAds = getActiveAds();
   var pausedAds = getPausedBecauseOfOutOfStockAds();
 
-  var inStockUrls = getInStockUrls();
-  var outOfStockUrls = getOutOfStockUrls();
+  var urlAvailabilityMap = getUrlAvailabilityMap();
 
-  pauseAdsByUrl(activeAds, outOfStockUrls);
-  if (pausedAds) resumeAdsByUrl(pausedAds, inStockUrls);
+  pauseAdsIfNotAvailable(activeAds, urlAvailabilityMap);
+  if (pausedAds) resumeAdsIfAvailable(pausedAds, urlAvailabilityMap);
 }
