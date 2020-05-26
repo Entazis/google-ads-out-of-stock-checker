@@ -18,6 +18,8 @@ OUT_OF_STOCK_TEXT = '<span class="sold_out">Sold Out</span>';
 //Specify the URL's element that identifies product pages
 DETAIL_PAGE_STRING = '/products/';
 
+var outOfStockLabelName = '"Paused - Out of Stock"';
+
 function getIdOrCreateLabelByName(name) {
   var labels = AdWordsApp.labels().withCondition('LabelName = ' + name);
 
@@ -56,63 +58,62 @@ function getActiveAds() {
   return AdWordsApp.ads().withCondition(query).get();
 }
 
-function getPausedAds(labelName) {
-  return AdWordsApp.ads().withCondition(
-      'LabelNames CONTAINS_ANY ' + '[' + labelName + ']').get();
+function getPausedBecauseOfOutOfStockAds() {
+  var labelId = getIdOrCreateLabelByName(outOfStockLabelName);
+  if (labelId) {
+    return AdWordsApp.ads().withCondition(
+        'LabelNames CONTAINS_ANY ' + '[' + outOfStockLabelName + ']').get();
+  } else {
+    return null;
+  }
 }
 
-function pauseAds(ads, labelName) {
-  Logger.log('Checking enabled ads... Number of ads to check: '
-      + ads.totalNumEntities());
+function pauseAdsByUrl(ads, urls) {
+  Logger.log('pausing - Number of ads to check: ' + ads.totalNumEntities());
 
   while (ads.hasNext()) {
     var ad = ads.next();
     var url = ad.urls().getFinalUrl();
-    if (!url || url.search(DETAIL_PAGE_STRING) === -1) {
-      continue
-    }
 
-    var content = UrlFetchApp.fetch(url).getContentText();
-    var isOutOfStock = content.search(OUT_OF_STOCK_TEXT);
-    if (isOutOfStock > -1) {
+    if (url && urls.indexOf(url) !== -1) {
       Logger.log(url + ' ' + 'OUT OF STOCK');
       ad.pause();
-      ad.applyLabel(labelName.replace('"', '').replace('"', ''));
+      ad.applyLabel(outOfStockLabelName.replace('"', '').replace('"', ''));
     }
   }
 }
 
-function resumeAds(ads, labelName) {
-  Logger.log('Checking paused ads... Number of ads to check: '
-      + ads.totalNumEntities());
+function resumeAdsByUrl(ads, urls) {
+  Logger.log('pausing - Number of ads to check: ' + ads.totalNumEntities());
 
   while (ads.hasNext()) {
     var ad = ads.next();
     var url = ad.urls().getFinalUrl();
-    if (!url) {
-      continue
-    }
 
-    var content = UrlFetchApp.fetch(url).getContentText();
-    var isOutOfStock = content.search(OUT_OF_STOCK_TEXT);
-    if (isOutOfStock === -1) {
+    if (url && urls.indexOf(url) !== -1) {
       Logger.log(url + ' ' + 'BACK IN STOCK');
       ad.enable();
       ad.labels().withCondition(
-          'LabelName = ' + labelName).get().next().remove();
+          'LabelName = ' + outOfStockLabelName).get().next().remove();
     }
   }
 }
 
+function getInStockUrls() {
+  return [];
+}
+
+function getOutOfStockUrls() {
+  return [];
+}
+
 function main() {
-  var labelName = '"Paused - Out of Stock"';
-  var labelId = getIdOrCreateLabelByName(labelName);
-  var ads = getActiveAds();
+  var activeAds = getActiveAds();
+  var pausedAds = getPausedBecauseOfOutOfStockAds();
 
-  pauseAds(ads, labelName);
+  var inStockUrls = getInStockUrls();
+  var outOfStockUrls = getOutOfStockUrls();
 
-  if (labelId !== 0) {
-    var pausedAds = getPausedAds(labelName);
-    resumeAds(pausedAds, labelName);
-  }
+  pauseAdsByUrl(activeAds, outOfStockUrls);
+  if (pausedAds) resumeAdsByUrl(pausedAds, inStockUrls);
 }
